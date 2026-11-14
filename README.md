@@ -182,6 +182,30 @@ docker run --rm -p 8080:8080 ghcr.io/6kmfi6hp/nvidia-playgroud-go:latest
 
 镜像不包含 Chromium。健康检查路径为 `GET /healthz`。反向代理流式接口时请关闭 buffering，并将 read timeout 设置为至少 120 秒。
 
+## 部署到 Render（保活）
+
+Render 免费版 web service 在 **15 分钟没有入站请求**后休眠（spin down），下一次请求要等约 50 秒冷启动。上游 API 本身没问题，只是实例被停掉了。仓库提供三条保活路径，任选其一：
+
+1. `render.yaml` —— Blueprint 部署描述（Docker、`plan: free`、`healthCheckPath: /healthz`、区域 `singapore`）。注意 `healthCheckPath` 只用于判断部署是否健康，**不阻止**休眠。
+2. `.github/workflows/keepalive.yml` —— GitHub Actions 每 10 分钟 `curl` 一次 `/healthz`。在仓库 Settings → Secrets and variables → Actions → Variables 里加 `KEEPALIVE_URL`（例如 `https://xxx.onrender.com`）。GitHub 的定时任务是最佳努力，高峰期可能晚 10–20 分钟才启动，偶发漏一次 ping。
+3. `scripts/keepalive.sh` —— 在任何常开机器上跑一个循环 ping，适合漏 ping 时兜底：
+
+```bash
+./scripts/keepalive.sh --once https://xxx.onrender.com   # 单次自检，非 0 退出码即失败
+KEEPALIVE_LOG=keepalive.log nohup ./scripts/keepalive.sh https://xxx.onrender.com &
+```
+
+脚本默认 600 秒一次、单次超时 90 秒（冷启动可能占掉近 60 秒）、失败后 20 秒快速重试一次；`KEEPALIVE_INTERVAL` / `KEEPALIVE_TIMEOUT` / `KEEPALIVE_PATH` 可覆盖。
+
+ping 的目标是 `/healthz`：它由进程内直接应答，只报告 token 池计数，不打上游 NVIDIA 接口，所以既便宜也不会触发限流。
+
+几点注意：
+
+- 免费额度是每个 workspace 每月 750 instance hours，一个 7×24 常驻服务就要用掉约 730 小时，几乎没有余量给其他服务。
+- `-keep-alive` 参数是另一件事：它定时 HEAD 上游 predict 主机，只为保住进程内的 TCP 连接（省掉 300–500ms 重连），不产生入站流量，因此**不能**阻止 Render 休眠。
+- 进程内自 ping 也不能当保活：实例休眠后进程已经停了，定时器没有机会把自己叫醒。保活必须在外部发起。
+- 如果服务是反复重启或崩溃而不是"睡过去"，那是 OOM 或上游失败，加 ping 治不了，先看 Render 的 Logs。
+
 ## 项目结构
 
 ```text

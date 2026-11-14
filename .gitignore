@@ -13,6 +13,9 @@
 # runtime model catalog cache (written by serve after each live refresh)
 models_cache.json
 
+# keepalive.sh runtime log
+keepalive.log
+
 # Local tools and temporary files
 .venv/
 .tmp/

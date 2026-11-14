@@ -1,0 +1,27 @@
+# Render blueprint: builds ./Dockerfile and serves it on port 8080.
+# Deploy with Dashboard -> New -> Blueprint, pointing at this repo.
+#
+# Note: a free web service still spins down after ~15 min without inbound
+# traffic. healthCheckPath below only tells Render when a deploy is healthy.
+# To stay awake, keep an external ping on /healthz going:
+#   - .github/workflows/keepalive.yml (every 10 min), or
+#   - scripts/keepalive.sh on an always-on box, or
+#   - a free 5-minute monitor such as cron-job.org / UptimeRobot.
+#
+# Beware the 750 free instance hours per workspace per month: one service kept
+# awake 24/7 already uses ~730 of them.
+services:
+  - type: web
+    name: nvidia-playgroud-go
+    runtime: docker
+    plan: free
+    region: singapore
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /healthz
+    autoDeploy: true
+    envVars:
+      # Optional upstream proxy for PoW solving and the model catalog; leave
+      # unset to use direct connections. Set it in the dashboard.
+      - key: CHROME_PROXY
+        sync: false
