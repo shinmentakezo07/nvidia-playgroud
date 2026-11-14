@@ -65,7 +65,7 @@ func main() {
 	captchaFlag := flag.String("captcha", "", "one-shot hCaptcha token (consumed on first use)")
 	auto := flag.Bool("auto", false, "prewarm captcha tokens via the captcha pool")
 	poolSize := flag.Int("pool-size", 12, "ready captcha tokens to keep buffered (-auto); must be >= pool-workers or extra solvers never run")
-	poolWorkers := flag.Int("pool-workers", 4, "concurrent captcha solvers (-auto); keep <= CPUs-1")
+	poolWorkers := flag.Int("pool-workers", 3, "concurrent captcha solvers (-auto); keep <= CPUs-1")
 	maxInflight := flag.Int("max-inflight", 9, "max concurrent upstream streams (0=unlimited)")
 	inflightWait := flag.Duration("inflight-wait", 30*time.Second, "how long to wait for an in-flight slot before returning 503 (0=reject immediately)")
 	coalesceMs := flag.Int("coalesce-ms", 16, "merge consecutive SSE content deltas within this window (0=off); first token always flushes immediately")
@@ -76,6 +76,8 @@ func main() {
 	modelCache := flag.String("model-cache", "models_cache.json", "JSON cache file for the live model catalog: written after every successful refresh, loaded at startup so model ids are available before/without the first fetch (empty disables)")
 	proxy := flag.String("proxy", "", "proxy for the pure-Go PoW solver, model-catalog scraper and WAF token minting (e.g. socks5://host:port); the latency-sensitive predict API always dials direct; falls back to CHROME_PROXY")
 	catalogCookie := flag.String("catalog-cookie", "", "Cookie header (e.g. aws-waf-token=...) for the filtered build.nvidia.com model catalog; exported from a browser that passed the AWS WAF challenge")
+	keepAlive := flag.Duration("keep-alive", 60*time.Second, "ping the predict host at this interval so the pooled connection stays warm (0=off); keep below the 90s idle timeout")
+
 	flag.Parse()
 
 	if !*auto && *captchaFlag == "" {
@@ -192,6 +194,12 @@ func main() {
 		pool *captcha.Pool
 	)
 	if *auto {
+		size, bumped := effectivePoolSize(*poolSize, *maxInflight, true)
+		if bumped {
+			log.Printf("captcha pool: pool-size %d < max-inflight %d; bumped pool-size to %d so concurrent streams never wait on a mint",
+				*poolSize, *maxInflight, size)
+			*poolSize = size
+		}
 		poolCfg := captcha.PoolConfig{
 			Size:        *poolSize,
 			Workers:     *poolWorkers,
@@ -213,6 +221,27 @@ func main() {
 		HTTPClient:   &http.Client{Timeout: 0, Transport: transport},
 		Pool:         pool,
 	})
+
+	// Warm the pooled predict connection before the first request: the cold
+	// TCP+TLS handshake costs ~2s, a reused connection ~300ms. Best-effort —
+	// the pool also self-heals on the first real request if this fails.
+	prewarmClient := &http.Client{Timeout: 15 * time.Second, Transport: transport}
+	go func() {
+		req, err := http.NewRequest(http.MethodHead, models.PredictBase, nil)
+		if err != nil {
+			return
+		}
+		if resp, err := prewarmClient.Do(req); err == nil {
+			resp.Body.Close()
+			log.Printf("predict connection pre-warmed to %s", models.PredictBase)
+		}
+	}()
+	if *keepAlive > 0 {
+		kaClient := &http.Client{Timeout: 30 * time.Second, Transport: transport}
+		stopKeepAlive := startKeepAlivePinger(kaClient, models.PredictBase, *keepAlive)
+		defer stopKeepAlive()
+		log.Printf("predict keep-alive pinger: every %s to %s", *keepAlive, models.PredictBase)
+	}
 
 	cfg, cfgPath, err := buildConfig(*addr)
 	if err != nil {

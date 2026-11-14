@@ -117,7 +117,7 @@ go run ./cmd/predict -model acme/new-llm -slug new-llm -function-id <uuid>
 | `-addr` | `:8080` | 监听地址 |
 | `-auto` | `false` | 启用验证码 token 池 |
 | `-pool-size` | `12` | 池中保留的可用 token 数；需 ≥ `-pool-workers`，否则多余求解器不会运行 |
-| `-pool-workers` | `4` | 并发求解器数量；建议 ≤ CPU 数 − 1 |
+| `-pool-workers` | `3` | 并发求解器数量；建议 ≤ CPU 数 − 1 |
 | `-captcha-wait` | `30s` | 等待 token 的最长时间，超时返回 503 |
 | `-max-inflight` | `9` | 最大并发上游流，`0` 表示不限制 |
 | `-coalesce-ms` | `16` | SSE 内容合并窗口，`0` 关闭 |
@@ -133,6 +133,24 @@ go run ./cmd/predict -model acme/new-llm -slug new-llm -function-id <uuid>
 | `HTTP_PROXY` / `HTTPS_PROXY` | 标准 Go 代理环境变量 |
 
 predict API 始终直连；`-proxy` 和 `CHROME_PROXY` 只作用于 PoW 求解、模型目录抓取和 WAF token 获取。
+
+### 出口轮换（WARP）
+
+`cmd/warpsocks` 把多个 SOCKS5 出口（例如多个 WARP 隧道）合成一个 SOCKS5 代理，每条新 TCP 连接换一个出口。求解器在单次求解内保持一条连接、失败后重连，因此每一次求解固定落在一个出口上，重试则换到下一条隧道：
+
+```bash
+# 每个出口一个 WARP 客户端，例如 usque
+usque socks -c cfg1.json -b 127.0.0.1 -p 4001 &
+usque socks -c cfg2.json -b 127.0.0.1 -p 4002 &
+
+# 合成为一条轮换代理
+go run ./cmd/warpsocks -exits 127.0.0.1:4001,127.0.0.1:4002 -addr 127.0.0.1:1080
+
+# 全部 hCaptcha 流量走轮换出口
+go run ./cmd/serve -auto -proxy socks5://127.0.0.1:1080
+```
+
+`-exits` 也可用 `WARPSOCKS_EXITS` 环境变量设置；`-v` 打印每条连接实际使用的出口。本命令不创建隧道，只做选择与转发。
 
 ## Go 客户端
 
