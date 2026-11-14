@@ -146,3 +146,31 @@ func TestFunctionPinOversizedBody(t *testing.T) {
 		t.Fatalf("status = %d, want 413", resp.StatusCode)
 	}
 }
+
+// TestLimitRequestBodyZeroDisables checks that -max-body 0 means "no limit"
+// as documented on the flag and in the README, instead of capping every body
+// at zero bytes and answering 413.
+func TestLimitRequestBodyZeroDisables(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	engine := gin.New()
+	engine.Use(limitRequestBody(0))
+	engine.POST("/v1/chat/completions", func(c *gin.Context) {
+		raw, err := io.ReadAll(c.Request.Body)
+		if err != nil {
+			t.Fatalf("read body: %v", err)
+		}
+		c.String(http.StatusOK, string(raw))
+	})
+	srv := httptest.NewServer(engine)
+	defer srv.Close()
+
+	body := `{"model":"moonshotai/kimi-k3_1-pro"}`
+	resp, err := srv.Client().Post(srv.URL+"/v1/chat/completions", "application/json", strings.NewReader(body))
+	if err != nil {
+		t.Fatalf("request: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200 with the limit disabled", resp.StatusCode)
+	}
+}

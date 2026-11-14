@@ -163,12 +163,27 @@ func (s *Server) handle(ctx context.Context, c net.Conn) {
 	splice(c, up)
 }
 
-// splice copies both directions until either side closes.
+// splice copies both directions until each has finished. When one direction
+// ends because its source sent EOF, the destination's write side is closed
+// too: a client that half-closes (CloseWrite) and then waits for the answer
+// would otherwise keep the upstream waiting for more request bytes until the
+// idleness deadline cuts the tunnel.
 func splice(a, b net.Conn) {
 	done := make(chan struct{}, 2)
-	go func() { _, _ = io.Copy(a, b); done <- struct{}{} }()
-	go func() { _, _ = io.Copy(b, a); done <- struct{}{} }()
+	go func() { _, _ = io.Copy(a, b); closeWrite(a); done <- struct{}{} }()
+	go func() { _, _ = io.Copy(b, a); closeWrite(b); done <- struct{}{} }()
 	<-done
+	<-done
+}
+
+// closeWrite ends c's send direction, falling back to closing the connection
+// for types without a half-close.
+func closeWrite(c net.Conn) {
+	if cw, ok := c.(interface{ CloseWrite() error }); ok {
+		_ = cw.CloseWrite()
+		return
+	}
+	_ = c.Close()
 }
 
 // socks5ServerHandshake performs the inbound no-auth greeting and returns the

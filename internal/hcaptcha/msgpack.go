@@ -129,6 +129,11 @@ func msgpackDecode(b []byte) (v any, rest []byte, err error) {
 			n = int(binary.BigEndian.Uint32(b[1:5]))
 			rest = b[5:]
 		}
+		// Each pair costs at least two bytes on the wire, so a count above
+		// that is truncated input; reject it before preallocating n entries.
+		if n > len(rest)/2 {
+			return nil, nil, fmt.Errorf("msgpack: map length %d exceeds input (%d bytes)", n, len(rest))
+		}
 		m := make(map[string]any, n)
 		for i := 0; i < n; i++ {
 			k, r, err := msgpackDecode(rest)
@@ -165,6 +170,10 @@ func msgpackDecode(b []byte) (v any, rest []byte, err error) {
 			}
 			n = int(binary.BigEndian.Uint32(b[1:5]))
 			rest = b[5:]
+		}
+		// Each element costs at least one byte on the wire; see map32 above.
+		if n > len(rest) {
+			return nil, nil, fmt.Errorf("msgpack: array length %d exceeds input (%d bytes)", n, len(rest))
 		}
 		return msgpackDecodeArray(rest, n)
 	case tag >= 0xa0 && tag <= 0xbf: // fixstr

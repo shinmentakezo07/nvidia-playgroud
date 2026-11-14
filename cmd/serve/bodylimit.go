@@ -35,13 +35,13 @@ func maxRequestBodyError(c *gin.Context, err error) bool {
 	return true
 }
 
-// limitRequestBody caps the inbound body at limit bytes. A declared
-// Content-Length above the limit is rejected before any read; chunked bodies
-// fail on the read that crosses it.
+// limitRequestBody caps the inbound body at limit bytes; limit <= 0 disables
+// the cap (the -max-body 0 case). A declared Content-Length above the limit is
+// rejected before any read; chunked bodies fail on the read that crosses it.
 func limitRequestBody(limit int64) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		req := c.Request
-		if req == nil || req.Body == nil || req.Body == http.NoBody {
+		if limit <= 0 || req == nil || req.Body == nil || req.Body == http.NoBody {
 			c.Next()
 			return
 		}

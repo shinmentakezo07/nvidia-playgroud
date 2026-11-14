@@ -64,3 +64,35 @@ func TestDecodeCompleteBinExt(t *testing.T) {
 		t.Fatalf("ext rest = %#v", rest)
 	}
 }
+
+// TestDecodeHugeContainerLength checks that a length prefix larger than the
+// remaining input is rejected before it is used to preallocate. array32/map32
+// can declare ~4e9 elements in 4 bytes; allocating on that count turns one
+// crafted getcaptcha payload into an OOM kill.
+func TestDecodeHugeContainerLength(t *testing.T) {
+	cases := []struct {
+		name string
+		in   []byte
+	}{
+		{"array32 enormous", []byte{0xdd, 0xff, 0xff, 0xff, 0xff}},
+		{"array32 oversized", []byte{0xdd, 0x00, 0x00, 0x10, 0x00}},
+		{"map32 enormous", []byte{0xdf, 0xff, 0xff, 0xff, 0xff}},
+		{"map32 oversized", []byte{0xdf, 0x00, 0x00, 0x10, 0x00}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var err error
+			func() {
+				defer func() {
+					if r := recover(); r != nil {
+						t.Fatalf("panic on %#v: %v", tc.in, r)
+					}
+				}()
+				_, _, err = msgpackDecode(tc.in)
+			}()
+			if err == nil {
+				t.Fatalf("msgpackDecode(%#v) succeeded, want a length error", tc.in)
+			}
+		})
+	}
+}

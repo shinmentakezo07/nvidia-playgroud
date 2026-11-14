@@ -222,3 +222,64 @@ func mustPort(t *testing.T, s string) uint16 {
 	}
 	return uint16(n)
 }
+
+// TestServerPropagatesHalfClose checks that a client that finishes writing and
+// waits for the answer (CloseWrite, then read to EOF) still gets it: the
+// upstream must see the EOF, not sit waiting for more request bytes until the
+// two-minute idleness deadline cuts the tunnel.
+func TestServerPropagatesHalfClose(t *testing.T) {
+	// Upstream that only answers once the request side has ended.
+	up, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	defer up.Close()
+	go func() {
+		for {
+			c, err := up.Accept()
+			if err != nil {
+				return
+			}
+			go func(c net.Conn) {
+				defer c.Close()
+				req, _ := io.ReadAll(c)
+				_, _ = c.Write([]byte("reply:" + string(req)))
+			}(c)
+		}
+	}()
+
+	// Exit that tunnels straight to the destination.
+	pool := &Pool{exits: []string{"direct:0"}}
+	pool.dial = func(_ context.Context, _, addr string) (net.Conn, error) {
+		return net.DialTimeout("tcp", addr, 2*time.Second)
+	}
+
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	addr := ln.Addr().String()
+	ln.Close()
+	srv := &Server{Addr: addr, Pool: pool}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go srv.ListenAndServe(ctx)
+	waitListening(t, addr)
+
+	conn := socks5Client(t, addr, up.Addr().String())
+	defer conn.Close()
+	if _, err := conn.Write([]byte("GET /")); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	if err := conn.(*net.TCPConn).CloseWrite(); err != nil {
+		t.Fatalf("half-close: %v", err)
+	}
+	_ = conn.SetReadDeadline(time.Now().Add(3 * time.Second))
+	got, err := io.ReadAll(conn)
+	if err != nil {
+		t.Fatalf("read reply: %v", err)
+	}
+	if string(got) != "reply:GET /" {
+		t.Fatalf("reply = %q, want %q", got, "reply:GET /")
+	}
+}
