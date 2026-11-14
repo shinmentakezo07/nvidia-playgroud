@@ -125,9 +125,10 @@ func TestApplyDefaultsFillsEmptyKwargsWhenExplicit(t *testing.T) {
 	}
 }
 
-// buildRequest must route each model via its own nv-function-id on the shared
-// stateless endpoint (since 2026-11 the URL is model-independent). Pinned to
-// two concrete registry entries so a future scrape that changes ids is caught.
+// buildRequest routes each model by its own slug path AND nv-function-id.
+// The slug-keyed v2 route is the one that streams incrementally; the
+// stateless v3 route buffers the whole SSE body. Pinned to two concrete
+// registry entries so a future scrape that changes ids is caught.
 func TestBuildRequestRoutesPerModel(t *testing.T) {
 	client := New(WithCaptchaToken("tok"))
 	cases := map[string]struct {
@@ -135,11 +136,11 @@ func TestBuildRequestRoutesPerModel(t *testing.T) {
 		fnID     string
 	}{
 		"moonshotai/kimi-k3_1-pro": {
-			"https://buildapi.ngc.nvidia.com/v3/predict/stateless/v1/chat/completions",
+			"https://buildapi.ngc.nvidia.com/v2/predict/models/qc69jvmznzxy/kimi-k3_1-pro",
 			"b79234a1-64e1-479e-87e7-1c8e3af74262",
 		},
 		"deepseek-ai/deepseek-v4-pro-0813": {
-			"https://buildapi.ngc.nvidia.com/v3/predict/stateless/v1/chat/completions",
+			"https://buildapi.ngc.nvidia.com/v2/predict/models/qc69jvmznzxy/deepseek-v4-pro-0813",
 			"6e70713f-4eeb-4ef7-b4f8-2d984f4141f6",
 		},
 	}
@@ -242,7 +243,7 @@ func TestBuildRequestModelInfoOverrideWins(t *testing.T) {
 	if got := httpReq.Header.Get("nv-function-id"); got != "override-id" {
 		t.Errorf("nv-function-id = %q, want the explicit override", got)
 	}
-	if want := "https://buildapi.ngc.nvidia.com/v3/predict/stateless/v1/chat/completions"; httpReq.URL.String() != want {
+	if want := "https://buildapi.ngc.nvidia.com/v2/predict/models/ns/sl"; httpReq.URL.String() != want {
 		t.Errorf("URL = %q, want %q", httpReq.URL.String(), want)
 	}
 	body, err := io.ReadAll(httpReq.Body)

@@ -27,6 +27,7 @@ var reasoningProfiles = map[string]reasoningProfile{
 	"nvidia/nemotron-3-ultra-550b-a55b":  {kind: reasoningEffort, levels: []string{"none", "medium", "high"}, defaultLevel: "high"},
 	"google/diffusiongemma-26b-a4b-it":   {kind: reasoningToggle},
 	"minimaxai/minimax-m3":               {kind: reasoningMiniMax},
+	"moonshotai/kimi-k3_1-pro":           {kind: reasoningToggle},
 }
 
 var effortRanks = map[string]int{

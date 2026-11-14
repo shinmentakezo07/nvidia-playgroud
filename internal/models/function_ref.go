@@ -116,10 +116,12 @@ func LookupPinned(model string) (info ModelInfo, canonical string, err error) {
 
 // SynthesizeFunctionRef builds invocation data for a pinned target the
 // registry does not list. slugRef may be "<publisher>/<slug>" or the bare
-// slug; only the last segment is used in the predict URL. An empty namespace
-// falls back to Namespace (every known playground function shares it).
-// Capability stays zero: unlisted endpoints get no thinking/vision hints
-// until someone verifies them.
+// slug. An empty namespace falls back to Namespace (every known playground
+// function shares it). Capability stays zero: unlisted endpoints get no
+// thinking/vision hints until someone verifies them.
+//
+// The result is marked Synthesized, so PredictEndpoint routes it to the
+// stateless endpoint: the slug-keyed v2 route only serves catalog slugs.
 func SynthesizeFunctionRef(pin, slugRef, namespace string) ModelInfo {
 	slug := slugRef
 	if i := strings.LastIndex(slugRef, "/"); i >= 0 {
@@ -128,7 +130,7 @@ func SynthesizeFunctionRef(pin, slugRef, namespace string) ModelInfo {
 	if namespace == "" {
 		namespace = Namespace
 	}
-	return ModelInfo{Slug: slug, Namespace: namespace, FunctionID: pin}
+	return ModelInfo{Slug: slug, Namespace: namespace, FunctionID: pin, Synthesized: true}
 }
 
 // ValidSlugRef reports whether ref can name a predict slug: non-empty and

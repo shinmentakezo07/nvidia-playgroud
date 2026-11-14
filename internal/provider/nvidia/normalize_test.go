@@ -166,6 +166,8 @@ func TestNormalizeRequestBodyMapsReasoningEffortByModel(t *testing.T) {
 		{name: "qwen high enables thinking", model: "google/diffusiongemma-26b-a4b-it", in: "high", key: "enable_thinking", want: true},
 		{name: "minimax medium uses adaptive thinking", model: "minimaxai/minimax-m3", in: "medium", key: "thinking_mode", want: "adaptive"},
 		{name: "minimax xhigh enables thinking", model: "minimaxai/minimax-m3", in: "xhigh", key: "thinking_mode", want: "enabled"},
+		{name: "kimi none disables thinking", model: "moonshotai/kimi-k3_1-pro", in: "none", key: "enable_thinking", want: false},
+		{name: "kimi high enables thinking", model: "moonshotai/kimi-k3_1-pro", in: "high", key: "enable_thinking", want: true},
 	}
 
 	for _, tc := range cases {

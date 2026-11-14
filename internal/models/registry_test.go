@@ -55,6 +55,17 @@ func TestPredictEndpoint(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Lookup: %v", err)
 	}
+	// Slug-keyed v2 route: the only one that streams incrementally.
+	want := PredictBase + "/v2/predict/models/qc69jvmznzxy/kimi-k3_1-pro"
+	if got := info.PredictEndpoint(); got != want {
+		t.Fatalf("PredictEndpoint() = %q want %q", got, want)
+	}
+}
+
+// A target with no slug (synthesized from a bare nv-function-id) cannot use
+// the registry-gated v2 route.
+func TestPredictEndpointWithoutSlugFallsBackToStateless(t *testing.T) {
+	info := ModelInfo{FunctionID: "6e70713f-4eeb-4ef7-b4f8-2d984f4141f6"}
 	want := PredictBase + "/v3/predict/stateless/v1/chat/completions"
 	if got := info.PredictEndpoint(); got != want {
 		t.Fatalf("PredictEndpoint() = %q want %q", got, want)

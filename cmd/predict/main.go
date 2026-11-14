@@ -4,7 +4,7 @@
 //
 // The predict call needs exactly four things:
 //
-//	POST https://buildapi.ngc.nvidia.com/v3/predict/stateless/v1/chat/completions
+//	POST https://buildapi.ngc.nvidia.com/v2/predict/models/{namespace}/{slug}
 //	Content-Type: application/json
 //	nv-function-id:   {functionID}      <- per-model NVCF function UUID
 //	nv-captcha-token: P1_...            <- one-shot hCaptcha passcode
@@ -240,6 +240,8 @@ func resolveTarget(c *config) (models.ModelInfo, string, error) {
 			return models.ModelInfo{}, "", fmt.Errorf(
 				"%w — no namespace/slug/function-id to derive; pass -slug and -function-id (see -list)", regErr)
 		}
+		// Off-catalog target: the slug is not served by the v2 route.
+		info.Synthesized = true
 	} else {
 		if info.Namespace == "" {
 			info.Namespace = reg.Namespace
@@ -254,6 +256,8 @@ func resolveTarget(c *config) (models.ModelInfo, string, error) {
 		// slug; a -slug override points at something else.
 		if info.Slug == reg.Slug {
 			info.Capability = reg.Capability
+		} else {
+			info.Synthesized = true
 		}
 	}
 	if info.Namespace == "" {
