@@ -88,6 +88,9 @@ func functionPinMiddleware() gin.HandlerFunc {
 			err = cerr
 		}
 		if err != nil {
+			if maxRequestBodyError(c, err) {
+				return
+			}
 			// Partial read: hand back what arrived and let the handler report it.
 			req.Body = io.NopCloser(bytes.NewReader(raw))
 			c.Next()

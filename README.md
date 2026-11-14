@@ -120,6 +120,7 @@ go run ./cmd/predict -model acme/new-llm -slug new-llm -function-id <uuid>
 | `-pool-workers` | `3` | 并发求解器数量；建议 ≤ CPU 数 − 1 |
 | `-captcha-wait` | `30s` | 等待 token 的最长时间，超时返回 503 |
 | `-max-inflight` | `9` | 最大并发上游流，`0` 表示不限制 |
+| `-max-body` | `67108864` | 入站请求体上限（字节），超出返回 413，`0` 表示不限制 |
 | `-coalesce-ms` | `16` | SSE 内容合并窗口，`0` 关闭 |
 | `-proxy` | 空 | PoW、模型目录和 WAF token 使用的代理 |
 

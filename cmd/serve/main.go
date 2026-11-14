@@ -67,6 +67,7 @@ func main() {
 	poolSize := flag.Int("pool-size", 12, "ready captcha tokens to keep buffered (-auto); must be >= pool-workers or extra solvers never run")
 	poolWorkers := flag.Int("pool-workers", 3, "concurrent captcha solvers (-auto); keep <= CPUs-1")
 	maxInflight := flag.Int("max-inflight", 9, "max concurrent upstream streams (0=unlimited)")
+	maxBody := flag.Int64("max-body", 64<<20, "max inbound request body in bytes; larger bodies get 413 (0=unlimited)")
 	inflightWait := flag.Duration("inflight-wait", 30*time.Second, "how long to wait for an in-flight slot before returning 503 (0=reject immediately)")
 	coalesceMs := flag.Int("coalesce-ms", 16, "merge consecutive SSE content deltas within this window (0=off); first token always flushes immediately")
 	poolTTL := flag.Duration("pool-ttl", 90*time.Second, "discard pooled captcha tokens older than this (-auto)")
@@ -297,6 +298,8 @@ func main() {
 		WithConfigPath(cfgPath).
 		WithCoreAuthManager(core).
 		WithServerOptions(
+			// Caps the inbound body before anything buffers it.
+			api.WithMiddleware(limitRequestBody(*maxBody)),
 			// Splits "<function-id>@<model>" bodies into a plain model id plus the
 			// nv-function-id header before cliproxy routes the request by model.
 			api.WithMiddleware(functionPinMiddleware()),

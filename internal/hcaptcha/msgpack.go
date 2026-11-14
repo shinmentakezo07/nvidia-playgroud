@@ -180,6 +180,9 @@ func msgpackDecode(b []byte) (v any, rest []byte, err error) {
 		if err != nil {
 			return nil, nil, err
 		}
+		if len(rest) < ln {
+			return nil, nil, fmt.Errorf("msgpack: truncated bin (want %d bytes, have %d)", ln, len(rest))
+		}
 		return append([]byte(nil), rest[:ln]...), rest[ln:], nil
 	case tag == 0xc7, tag == 0xc8, tag == 0xc9: // ext8/16/32
 		ln, rest, err := msgpackLen(b)
@@ -188,6 +191,9 @@ func msgpackDecode(b []byte) (v any, rest []byte, err error) {
 		}
 		if len(rest) < 1 {
 			return nil, nil, fmt.Errorf("msgpack: truncated ext type")
+		}
+		if len(rest)-1 < ln {
+			return nil, nil, fmt.Errorf("msgpack: truncated ext (want %d bytes, have %d)", ln, len(rest)-1)
 		}
 		payload := rest[1 : 1+ln]
 		return append([]byte(nil), payload...), rest[1+ln:], nil
