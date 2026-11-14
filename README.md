@@ -116,10 +116,10 @@ go run ./cmd/predict -model acme/new-llm -slug new-llm -function-id <uuid>
 |------|--------|------|
 | `-addr` | `:8080` | 监听地址 |
 | `-auto` | `false` | 启用验证码 token 池 |
-| `-pool-size` | `3` | 池中保留的可用 token 数 |
-| `-pool-workers` | `1` | 并发求解器数量 |
+| `-pool-size` | `12` | 池中保留的可用 token 数；需 ≥ `-pool-workers`，否则多余求解器不会运行 |
+| `-pool-workers` | `4` | 并发求解器数量；建议 ≤ CPU 数 − 1 |
 | `-captcha-wait` | `30s` | 等待 token 的最长时间，超时返回 503 |
-| `-max-inflight` | `8` | 最大并发上游流，`0` 表示不限制 |
+| `-max-inflight` | `9` | 最大并发上游流，`0` 表示不限制 |
 | `-coalesce-ms` | `16` | SSE 内容合并窗口，`0` 关闭 |
 | `-proxy` | 空 | PoW、模型目录和 WAF token 使用的代理 |
 
