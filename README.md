@@ -187,7 +187,14 @@ docker run --rm -p 8080:8080 ghcr.io/6kmfi6hp/nvidia-playgroud-go:latest
 Render 免费版 web service 在 **15 分钟没有入站请求**后休眠（spin down），下一次请求要等约 50 秒冷启动。上游 API 本身没问题，只是实例被停掉了。仓库提供三条保活路径，任选其一：
 
 1. `render.yaml` —— Blueprint 部署描述（Docker、`plan: free`、`healthCheckPath: /healthz`、区域 `singapore`）。注意 `healthCheckPath` 只用于判断部署是否健康，**不阻止**休眠。
-2. `.github/workflows/keepalive.yml` —— GitHub Actions 每 10 分钟 `curl` 一次 `/healthz`。在仓库 Settings → Secrets and variables → Actions → Variables 里加 `KEEPALIVE_URL`（例如 `https://xxx.onrender.com`）。GitHub 的定时任务是最佳努力，高峰期可能晚 10–20 分钟才启动，偶发漏一次 ping。
+2. `scripts/keepalive.workflow.yml` —— GitHub Actions 的**模板**，每 5 分钟 `curl` 一次 `/healthz`。它故意放在 `.github/workflows/` 之外：推送该目录需要带 `workflow` scope 的 token，当前凭据没有，GitHub 会直接拒绝。要启用就复制过去（或直接在网页编辑器里新建）：
+
+   ```bash
+   mkdir -p .github/workflows
+   cp scripts/keepalive.workflow.yml .github/workflows/keepalive.yml
+   ```
+
+   然后在 Settings → Secrets and variables → Actions → Variables 里加 `KEEPALIVE_URL`（例如 `https://xxx.onrender.com`）。注意 GitHub 的定时任务是最佳努力，高峰期可能晚 10–20 分钟才启动，所以它只能当兜底，最可靠的还是第 1 种外部监控。
 3. `scripts/keepalive.sh` —— 在任何常开机器上跑一个循环 ping，适合漏 ping 时兜底：
 
 ```bash

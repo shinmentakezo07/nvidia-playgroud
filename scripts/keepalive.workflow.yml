@@ -1,0 +1,76 @@
+# Keepalive workflow TEMPLATE.
+#
+# This file lives outside .github/workflows/ on purpose: pushing a file into
+# .github/workflows/ requires a GitHub token with the "workflow" scope, and
+# the current credential only has gist/read:org/repo, so GitHub rejects such a
+# push outright. Keeping the workflow here lets it be committed and shared
+# like any other file.
+#
+# To activate it (needs a token with workflow scope, or just use the web UI):
+#   mkdir -p .github/workflows
+#   cp scripts/keepalive.workflow.yml .github/workflows/keepalive.yml
+#   git add .github/workflows/keepalive.yml && git commit -m "ci: keepalive" && git push
+#
+# Or paste this file's contents at:
+#   https://github.com/<owner>/<repo>/new/main/.github/workflows/keepalive.yml
+#
+# Then set KEEPALIVE_URL under Settings -> Secrets and variables -> Actions ->
+# Variables, e.g. https://my-app.onrender.com
+#
+# You do not need this workflow at all if you point an external monitor
+# (cron-job.org, UptimeRobot) at https://<app>.onrender.com/healthz every
+# 1-5 minutes -- that is more reliable than GitHub's best-effort scheduler.
+
+name: Keepalive
+
+# Keeps the Render deployment from idling out. Render's free plan spins a web
+# service down after ~15 minutes without inbound traffic; one hit every 10
+# minutes keeps it warm. /healthz is answered in-process by cmd/serve (pool
+# counters only, no upstream call), so the ping is free.
+#
+# Setup: add KEEPALIVE_URL as a repository variable (Settings -> Secrets and
+# variables -> Actions -> Variables), e.g. https://my-app.onrender.com
+#
+# Caveat: GitHub's scheduler is best effort and can run 10-20+ minutes late
+# under load, so even this */5 cadence can occasionally miss the 15 min window.
+# The most reliable free option is an external monitor doing the same request
+# every 1-5 minutes (cron-job.org, UptimeRobot); scripts/keepalive.sh works on
+# any always-on box.
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: keepalive
+  cancel-in-progress: false
+
+jobs:
+  ping:
+    name: Ping /healthz
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Ping
+        env:
+          BASE: ${{ vars.KEEPALIVE_URL || secrets.KEEPALIVE_URL }}
+        run: |
+          set -euo pipefail
+          if [ -z "${BASE:-}" ]; then
+            echo "KEEPALIVE_URL is not set (repository variable or secret)" >&2
+            exit 1
+          fi
+          url="${BASE%/}/healthz"
+          for attempt in 1 2 3; do
+            if body=$(curl -fsS --max-time 90 "$url"); then
+              echo "attempt $attempt ok: $body"
+              exit 0
+            fi
+            echo "attempt $attempt failed"
+            if [ "$attempt" -lt 3 ]; then sleep 20; fi
+          done
+          echo "all attempts failed" >&2
+          exit 1
