@@ -64,11 +64,6 @@ type ModelInfo struct {
 	Namespace string `json:"namespace"`
 	// FunctionID is the nv-function-id header value (per-model UUID).
 	FunctionID string `json:"function_id"`
-	// Synthesized marks a target built from a bare nv-function-id rather
-	// than read from the catalog. The slug-keyed v2 route is registry-gated
-	// upstream ("AI Playground does not exist in registry"), so an unlisted
-	// slug must use the stateless route instead. Zero value = listed.
-	Synthesized bool `json:"synthesized,omitempty"`
 	// Capability is marshaled into the registry JSON cache and restored
 	// by LoadCache; omitted when nil.
 	Capability *ModelCapability `json:"capability,omitempty"`
@@ -91,11 +86,11 @@ type ModelCapability struct {
 // route returns the same events but holds the whole response until generation
 // finishes, so stream:true degrades to one burst at the end.
 //
-// The v2 route is registry-gated upstream ("AI Playground does not exist in
-// registry" for delisted slugs), so a target synthesized from a bare
-// nv-function-id cannot use it and falls back to stateless.
+// v2 is the default whenever the target carries a namespace and slug, i.e.
+// every catalog model and every pin that names one. The only target without a
+// slug cannot use v2 at all, so it falls back to stateless.
 func (m ModelInfo) PredictEndpoint() string {
-	if m.Slug != "" && m.Namespace != "" && !m.Synthesized {
+	if m.Slug != "" && m.Namespace != "" {
 		return PredictBase + "/v2/predict/models/" + m.Namespace + "/" + m.Slug
 	}
 	return PredictBase + "/v3/predict/stateless/v1/chat/completions"

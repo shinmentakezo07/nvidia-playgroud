@@ -120,8 +120,9 @@ func LookupPinned(model string) (info ModelInfo, canonical string, err error) {
 // function shares it). Capability stays zero: unlisted endpoints get no
 // thinking/vision hints until someone verifies them.
 //
-// The result is marked Synthesized, so PredictEndpoint routes it to the
-// stateless endpoint: the slug-keyed v2 route only serves catalog slugs.
+// The slug path is kept, so the target uses the streaming v2 route; an
+// off-catalog slug that upstream rejects surfaces its own 404 rather than
+// silently degrading to the buffering stateless route.
 func SynthesizeFunctionRef(pin, slugRef, namespace string) ModelInfo {
 	slug := slugRef
 	if i := strings.LastIndex(slugRef, "/"); i >= 0 {
@@ -130,7 +131,7 @@ func SynthesizeFunctionRef(pin, slugRef, namespace string) ModelInfo {
 	if namespace == "" {
 		namespace = Namespace
 	}
-	return ModelInfo{Slug: slug, Namespace: namespace, FunctionID: pin, Synthesized: true}
+	return ModelInfo{Slug: slug, Namespace: namespace, FunctionID: pin}
 }
 
 // ValidSlugRef reports whether ref can name a predict slug: non-empty and

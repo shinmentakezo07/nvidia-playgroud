@@ -62,8 +62,7 @@ func TestPredictEndpoint(t *testing.T) {
 	}
 }
 
-// A target with no slug (synthesized from a bare nv-function-id) cannot use
-// the registry-gated v2 route.
+// A target with no slug has no v2 path to key on, so it must use stateless.
 func TestPredictEndpointWithoutSlugFallsBackToStateless(t *testing.T) {
 	info := ModelInfo{FunctionID: "6e70713f-4eeb-4ef7-b4f8-2d984f4141f6"}
 	want := PredictBase + "/v3/predict/stateless/v1/chat/completions"
